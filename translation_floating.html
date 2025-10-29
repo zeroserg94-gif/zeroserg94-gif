@@ -1,0 +1,229 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Переводчик</title>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: transparent;
+    color: #222;
+  }
+
+  /* Плавающая кнопка */
+  #chatButton {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #444;
+    border: 1px solid #ddd;
+    border-radius: 50%;
+    width: 56px;
+    height: 56px;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+    transition: all 0.3s ease;
+    z-index: 9999;
+  }
+  #chatButton:hover {
+    background: rgba(250, 250, 250, 1);
+    transform: scale(1.05);
+  }
+
+  /* Окно чата */
+  #chatWindow {
+    position: fixed;
+    bottom: 85px;
+    left: 20px;
+    width: 340px;
+    height: 440px;
+    background: rgba(255, 255, 255, 0.93);
+    backdrop-filter: blur(10px);
+    border: 1px solid #ddd;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 10000;
+
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  #chatWindow.show {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: all;
+  }
+
+  /* Заголовок */
+  #chatHeader {
+    text-align: center;
+    font-weight: 600;
+    font-size: 15px;
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    background: rgba(255,255,255,0.95);
+  }
+
+  /* Контейнер сообщений */
+  #chat {
+    flex: 1;
+    padding: 12px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .msg {
+    margin: 6px 0;
+    padding: 8px 12px;
+    border-radius: 16px;
+    max-width: 80%;
+    word-wrap: break-word;
+    font-size: 14px;
+    line-height: 1.4em;
+  }
+
+  .user {
+    align-self: flex-end;
+    background: rgba(220, 240, 255, 0.85);
+  }
+
+  .bot {
+    align-self: flex-start;
+    background: rgba(240, 240, 240, 0.85);
+  }
+
+  /* Поле ввода */
+  #inputArea {
+    display: flex;
+    padding: 8px;
+    border-top: 1px solid #ddd;
+    background: rgba(255,255,255,0.9);
+  }
+
+  #textInput {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    font-size: 14px;
+    color: #222;
+    background: rgba(255,255,255,0.95);
+    outline: none;
+  }
+
+  #sendBtn {
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    color: #555;
+    font-size: 18px;
+    margin-left: 6px;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+  }
+  #sendBtn:hover {
+    background: rgba(230,230,230,0.7);
+  }
+
+  #sendBtn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+</style>
+</head>
+<body>
+
+<!-- Кнопка открытия -->
+<button id="chatButton">💬</button>
+
+<!-- Окно чата -->
+<div id="chatWindow">
+  <div id="chatHeader">Помощь учителя</div>
+  <div id="chat"></div>
+  <div id="inputArea">
+    <input id="textInput" type="text" placeholder="Введите текст..." />
+    <button id="sendBtn">➤</button>
+  </div>
+</div>
+
+<script>
+const chatBtn = document.getElementById('chatButton');
+const chatWindow = document.getElementById('chatWindow');
+const chat = document.getElementById('chat');
+const input = document.getElementById('textInput');
+const sendBtn = document.getElementById('sendBtn');
+
+let open = false;
+let attempts = 0;
+const maxAttempts = 10;
+const maxWords = 5;
+
+// Открытие/закрытие с анимацией
+chatBtn.onclick = () => {
+  open = !open;
+  chatWindow.classList.toggle('show', open);
+};
+
+// Добавить сообщение
+function addMessage(text, sender) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + sender;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// Перевод текста
+async function translateText(text) {
+  const words = text.trim().split(/\s+/);
+  if (words.length > maxWords) {
+    addMessage(`⚠️ Не более ${maxWords} слов за раз.`, 'bot');
+    return;
+  }
+  if (attempts >= maxAttempts) {
+    addMessage('Лимит переводов исчерпан 💡', 'bot');
+    sendBtn.disabled = true;
+    input.disabled = true;
+    return;
+  }
+
+  attempts++;
+  addMessage(text, 'user');
+
+  try {
+    const sourceLang = /[а-яА-Я]/.test(text) ? 'ru' : 'en';
+    const targetLang = sourceLang === 'ru' ? 'en' : 'ru';
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const translation = data[0][0][0];
+    addMessage(translation, 'bot');
+  } catch {
+    addMessage('⚠️ Ошибка соединения', 'bot');
+  }
+}
+
+// Отправка
+sendBtn.onclick = () => {
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  translateText(text);
+};
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendBtn.click();
+});
+</script>
+
+</body>
+</html>
